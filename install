@@ -35,20 +35,95 @@ add_repo() {
 
 }
 
-edit_config() {
-}
 
 run_install_mariadb(){
     apt-get -y install mariadb-server
 }
 
 config_mariadb(){
-
+https://gist.githubusercontent.com/coderua/5592d95970038944d099/raw/98c2ffabc1fd9db73650acbf44ce7b349831f7b8/mysql_secure.sh
 }
 
 
 run_install_PDNS() {
 apt-get -y install pdns-server pdns-backend-mysql
+}
+
+edit_config_PDNS() {
+
+}
+
+create_passwd(){
+
+}
+
+mysql_secure(){
+    # Usage:
+#  Setup mysql root password:  mysql_secure 'your_new_root_password'
+#  Change mysql root password: mysql_secure 'your_old_root_password' 'your_new_root_password'"
+#
+
+PURGE_EXPECT_WHEN_DONE=0
+
+
+if [ -n "${1}" -a -z "${2}" ]; then
+    # Setup root password
+    CURRENT_MYSQL_PASSWORD=''
+    NEW_MYSQL_PASSWORD="${1}"
+elif [ -n "${1}" -a -n "${2}" ]; then
+    # Change existens root password
+    CURRENT_MYSQL_PASSWORD="${1}"
+    NEW_MYSQL_PASSWORD="${2}"
+else
+    echo "Usage:"
+    echo "  Setup mysql root password: ${0} 'your_new_root_password'"
+    echo "  Change mysql root password: ${0} 'your_old_root_password' 'your_new_root_password'"
+fi
+
+if [ $(dpkg-query -W -f='${Status}' expect 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
+    echo "Can't find expect. Trying install it..."
+    apt -y install expect
+
+fi
+
+SECURE_MYSQL=$(expect -c "
+
+set timeout 3
+spawn mysql_secure_installation
+
+expect \"Enter current password for root (enter for none):\"
+send \"$CURRENT_MYSQL_PASSWORD\r\"
+
+expect \"root password?\"
+send \"y\r\"
+
+expect \"New password:\"
+send \"$NEW_MYSQL_PASSWORD\r\"
+
+expect \"Re-enter new password:\"
+send \"$NEW_MYSQL_PASSWORD\r\"
+
+expect \"Remove anonymous users?\"
+send \"y\r\"
+
+expect \"Disallow root login remotely?\"
+send \"y\r\"
+
+expect \"Remove test database and access to it?\"
+send \"y\r\"
+
+expect \"Reload privilege tables now?\"
+send \"y\r\"
+
+expect eof
+")
+
+
+echo "${SECURE_MYSQL}"
+
+if [ "${PURGE_EXPECT_WHEN_DONE}" -eq 1 ]; then
+    apt -y purge expect
+fi
 }
 
 rw_check() {
@@ -94,7 +169,9 @@ rw_check
 root_check
 
 #add_repo
-run_install
+run_install_mariadb
+mysql_secure
+run_install_PDNS
 #service pimd stop
 #edit_config
 #service pimd start
